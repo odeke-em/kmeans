@@ -32,6 +32,10 @@ type person struct {
 
 var _ kmeans.Vector = (*person)(nil)
 
+func (p *person) Signature() interface{} {
+	return fmt.Sprintf("%f-%d-%f", p.Age, p.NumLanguages, p.WorkExperience)
+}
+
 func (p *person) Len() int { return 3 }
 func (p *person) Dimension(i int) (interface{}, error) {
 	switch i {

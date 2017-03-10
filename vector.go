@@ -3,11 +3,16 @@ package kmeans
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 )
 
+var errDimensionIndexOutOfBounds = errors.New("dimension index out of bounds")
+
 type Coordinate struct {
-	dimens      []interface{}
-	transformer func(pi interface{}) float64
+	dimens            []interface{}
+	transformer       func(pi interface{}) float64
+	memoizedSignature interface{}
 }
 
 func (c *Coordinate) MarshalJSON() ([]byte, error) {
@@ -66,9 +71,23 @@ var _ Vector = (*Coordinate)(nil)
 type Vector interface {
 	Len() int
 	Dimension(i int) (interface{}, error)
+	Signature() interface{}
 }
 
-var errDimensionIndexOutOfBounds = errors.New("dimension index out of bounds")
+func (c *Coordinate) Signature() interface{} {
+	if c.memoizedSignature != nil {
+		return c.memoizedSignature
+	}
+
+	// Otherwise compute it
+	var allStrings []string
+	for _, dimen := range c.dimens {
+		allStrings = append(allStrings, fmt.Sprintf("%#v", dimen))
+	}
+
+	c.memoizedSignature = strings.Join(allStrings, "-")
+	return c.memoizedSignature
+}
 
 func (c *Coordinate) Dimension(i int) (interface{}, error) {
 	if i >= c.Len() {

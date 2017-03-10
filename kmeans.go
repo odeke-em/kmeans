@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"reflect"
 	"strings"
 	"time"
 )
@@ -45,9 +44,9 @@ func EuclideanDistance(p, q Vector) (float64, error) {
 type Cluster map[Vector][]Vector
 
 type KMean struct {
-	K      int
+	K       int
 	Vectors []Vector
-	Seed   int64
+	Seed    int64
 }
 
 func KMeans(k int, points ...Vector) (Cluster, error) {
@@ -74,8 +73,8 @@ func KMeanify(km *KMean) (Cluster, error) {
 	randSource := rand.New(rand.NewSource(seed))
 
 	centroidIndices := randSource.Perm(len(points))[:k]
-	fmt.Printf("centroidIndices: %#v\n", centroidIndices)
 	centroidIndicesMap := make(map[int]bool)
+
 	var centroids []Vector
 	for _, i := range centroidIndices {
 		centroids = append(centroids, points[i])
@@ -86,7 +85,6 @@ func KMeanify(km *KMean) (Cluster, error) {
 
 	passes := uint64(0)
 	for {
-		fmt.Printf("Pass #%d\n", passes)
 		curCluster := make(Cluster)
 		// Step 2: Assign each object to the centroid closest to it.
 		for i, p := range points {
@@ -113,22 +111,29 @@ func KMeanify(km *KMean) (Cluster, error) {
 	return lastCluster, nil
 }
 
+func signatureMap(c Cluster) map[interface{}][]Vector {
+	signatures := make(map[interface{}][]Vector)
+	for k, vec := range c {
+		signatures[k.Signature()] = vec
+	}
+	return signatures
+}
+
 func ClustersEqual(cA, cB Cluster) bool {
 	if len(cA) != len(cB) {
 		return false
 	}
 
-	for kA, elemA := range cA {
-		elemB, inB := cB[kA]
+	cASignatures := signatureMap(cA)
+	cBSignatures := signatureMap(cB)
+
+	for kA, vecA := range cASignatures {
+		vecB, inB := cBSignatures[kA]
 		if !inB {
 			return false
 		}
 
-		// The sort order of each element matters
-		// Unravel each element into a map
-		mB, mA := asMap(elemB), asMap(elemA)
-		fmt.Printf("mA: %#v\nmB: %#v\n", mA, mB)
-		if !reflect.DeepEqual(asMap(elemB), asMap(elemA)) {
+		if !vectorSlicesEqual(vecA, vecB) {
 			return false
 		}
 	}
@@ -136,13 +141,29 @@ func ClustersEqual(cA, cB Cluster) bool {
 	return true
 }
 
-func asMap(elems []Vector) map[string]struct{} {
-	mp := make(map[string]struct{})
-	for _, elem := range elems {
-		blob, _ := json.Marshal(elem)
-		mp[string(blob)] = struct{}{}
+func vectorSlicesEqual(va, vb []Vector) bool {
+	if va == nil || vb == nil {
+		return va == nil && vb == nil
 	}
-	return mp
+	if len(va) != len(vb) {
+		return false
+	}
+
+	// Even if they aren't sorted, they'll be equal
+	hA := make(map[interface{}]struct{})
+	for _, vai := range va {
+		hA[vai.Signature()] = struct{}{}
+	}
+
+	for _, vbi := range vb {
+		sig := vbi.Signature()
+		_, ok := hA[sig]
+		if !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 func minDistanceIndex(indicesToDistances map[int]float64) int {
@@ -183,7 +204,6 @@ func (c *Cluster) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("centroid:: %#v %T\n", centroid, centroid)
 		elemsBlob, err := json.Marshal(elements)
 		if err != nil {
 			return nil, err
@@ -195,7 +215,6 @@ func (c *Cluster) MarshalJSON() ([]byte, error) {
 	buf.Write([]byte("{"))
 	buf.Write([]byte(strings.Join(strs, ",")))
 	buf.Write([]byte("}"))
-	fmt.Printf("strs: %#v\n", strs)
 
 	return buf.Bytes(), nil
 }

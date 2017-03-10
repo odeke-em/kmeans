@@ -1,8 +1,6 @@
 package kmeans_test
 
 import (
-	"encoding/json"
-	"math/rand"
 	"testing"
 
 	"github.com/odeke-em/kmeans"
@@ -14,37 +12,35 @@ func coord(args ...interface{}) *kmeans.Coordinate {
 }
 
 func coordsAsVectors(coords ...*kmeans.Coordinate) []kmeans.Vector {
-	var points []kmeans.Vector
+	var Vectors []kmeans.Vector
 	for _, c := range coords {
-		points = append(points, c)
+		Vectors = append(Vectors, c)
 	}
 
-	return points
+	return Vectors
 }
 
 func personsAsVectors(players ...*person) []kmeans.Vector {
-	var points []kmeans.Vector
+	var Vectors []kmeans.Vector
 	for _, p := range players {
-		points = append(points, p)
+		Vectors = append(Vectors, p)
 	}
 
-	return points
+	return Vectors
 }
 
 func TestKMeans(t *testing.T) {
-	rand.Seed(10)
-
 	tests := []struct {
-		k      int
-		seed   int64
-		points []kmeans.Vector
-		want   kmeans.Cluster
+		k       int
+		seed    int64
+		Vectors []kmeans.Vector
+		want    kmeans.Cluster
 	}{
 
 		0: {
 			seed: 10,
 			k:    4,
-			points: coordsAsVectors(
+			Vectors: coordsAsVectors(
 				coord(23, 10, 15),
 				coord(255, 169, 200),
 				coord(230, 150, 215),
@@ -70,7 +66,7 @@ func TestKMeans(t *testing.T) {
 		1: {
 			k:    3,
 			seed: 648,
-			points: personsAsVectors(
+			Vectors: personsAsVectors(
 				&person{Age: 32, NumLanguages: 1, WorkExperience: 14},
 				&person{Age: 38, WorkExperience: 18, NumLanguages: 3},
 				&person{Age: 10, WorkExperience: 0, NumLanguages: 5},
@@ -96,7 +92,7 @@ func TestKMeans(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		got, err := kmeans.KMeanify(&kmeans.KMean{K: tt.k, Vectors: tt.points, Seed: tt.seed})
+		got, err := kmeans.KMeanify(&kmeans.KMean{K: tt.k, Vectors: tt.Vectors, Seed: tt.seed})
 		if err != nil {
 			t.Fatalf("#%d: kmeans err: %v", i, err)
 		}
@@ -106,8 +102,53 @@ func TestKMeans(t *testing.T) {
 			continue
 		}
 
-		gotBlob, _ := json.Marshal(&got)
-		wantBlob, _ := json.Marshal(&tt.want)
-		t.Errorf("#%d:\n\tgot:  %s\n\twant: %s\n", i, gotBlob, wantBlob)
+		// Preliminary equality test
+		if !kmeans.ClustersEqual(got, got) {
+			t.Errorf("ClustersEqual failed on itself")
+			continue
+		}
+	}
+}
+
+func TestClustersEqual(t *testing.T) {
+	tests := []struct {
+		a, b      kmeans.Cluster
+		wantEqual bool
+	}{
+		0: {
+			a: kmeans.Cluster{},
+			b: kmeans.Cluster{
+				&person{Age: 10}: nil,
+			},
+		},
+		1: {
+			a:         kmeans.Cluster{},
+			b:         kmeans.Cluster{},
+			wantEqual: true,
+		},
+		2: {
+			a: kmeans.Cluster{
+				&person{Age: 10}: []kmeans.Vector{
+					&person{Age: 30},
+					&person{Age: 64, WorkExperience: 38},
+				},
+			},
+			b: kmeans.Cluster{
+				&person{Age: 10}: []kmeans.Vector{
+					&person{Age: 30},
+					&person{Age: 64, WorkExperience: 38},
+				},
+			},
+			wantEqual: true,
+		},
+	}
+
+	for i, tt := range tests {
+		gotEqual := kmeans.ClustersEqual(tt.a, tt.b)
+		wantEqual := tt.wantEqual
+
+		if gotEqual != wantEqual {
+			t.Errorf("#%d gotEqual=%v wantEqual=%v", i, gotEqual, wantEqual)
+		}
 	}
 }
